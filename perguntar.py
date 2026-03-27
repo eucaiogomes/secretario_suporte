@@ -1,6 +1,5 @@
 import argparse
 import sys
-import json
 import os
 from pathlib import Path
 
@@ -12,15 +11,9 @@ from src.text_processor import TextProcessor
 from src.search_engine import SearchEngine
 from src.context_builder import ContextBuilder
 from src.prompt_builder import PromptBuilder
-from src.gemini_client import GeminiClient
+from src.llm_router import LLMRouter
 from src.printer import Printer
-
-def load_settings():
-    settings_path = Path(os.path.dirname(os.path.abspath(__file__))) / "config" / "settings.json"
-    if settings_path.exists():
-        with open(settings_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return {}
+from src.config import AppConfig
 
 def main():
     parser = argparse.ArgumentParser(description="Obsidian AI Knowledge CLI")
@@ -29,8 +22,13 @@ def main():
     
     args = parser.parse_args()
     
-    settings = load_settings()
-    vault_path = args.path or settings.get("vault_path")
+    try:
+        config = AppConfig()
+    except Exception as e:
+        Printer.print_error(f"Erro de configuração inicial: {e}")
+        sys.exit(1)
+
+    vault_path = args.path or config.vault_path
     
     if not vault_path or not os.path.exists(vault_path):
         Printer.print_error(f"O caminho do Vault não foi configurado ou é inválido: '{vault_path}'")
@@ -39,6 +37,8 @@ def main():
     Printer.print_header(args.question)
     
     try:
+        config.validate_keys()
+
         # 1. Leitura Inicial dos Arquivos
         reader = FileReader(vault_path)
         raw_documents = reader.read_all()
@@ -50,10 +50,10 @@ def main():
         # 2. Processador de Texto (Limpeza e Pseudo-Chunking)
         clean_docs = []
         for doc in raw_documents:
-            clean_text = TextProcessor.clean_markdown(doc["content"])
+            clean_text = TextProcessor.clean_markdown(doc.content)
             if clean_text:
                 # Quebra em mini-documentos baseados em headings (# / ##)
-                chunks = TextProcessor.chunk_document(doc["filename"], doc["path"], clean_text)
+                chunks = TextProcessor.chunk_document(doc.filename, doc.path, clean_text)
                 clean_docs.extend(chunks)
                 
         # 3. Motor de Busca (TF-IDF com Top 15 V2)
@@ -63,14 +63,14 @@ def main():
         context_builder = ContextBuilder(max_chars=20000)
         context = context_builder.build_context(top_docs)
         
-        sources = [doc["filename"] for doc in top_docs]
+        sources = [doc.filename for doc in top_docs]
         
         # 5. Montagem do Prompt Final
         prompt = PromptBuilder.build(args.question, context)
         
-        # 6. Comunicação com a API (Gemini Flash)
-        client = GeminiClient()
-        answer = client.ask(prompt)
+        # 6. Comunicação com a API (LLM Router com Fallbacks)
+        router = LLMRouter()
+        answer = router.generate_response(prompt, context)
         
         # 7. Renderização na Tela
         Printer.print_answer(answer, sources)

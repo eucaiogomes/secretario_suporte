@@ -1,18 +1,16 @@
-import os
+import logging
 from google import genai
-from dotenv import load_dotenv
+from src.config import AppConfig
 
-# Carrega a GEMINI_API_KEY do arquivo .env
-load_dotenv()
+logger = logging.getLogger(__name__)
 
 class GeminiClient:
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY não foi encontrada configurada no .env!")
+        config = AppConfig()
+        if not config.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY não configurada!")
             
-        # O Google atualizou a biblioteca para google-genai (genai.Client) e também as versões dos modelos
-        self.client = genai.Client(api_key=api_key)
+        self.client = genai.Client(api_key=config.gemini_api_key)
         self.model_name = 'gemini-2.5-flash'
         
     def ask(self, prompt: str) -> str:
@@ -27,4 +25,5 @@ class GeminiClient:
             )
             return response.text
         except Exception as e:
+            logger.error(f"Erro ao contatar a API do Google Gemini: {str(e)}")
             return f"❌ Erro ao contatar a API do Google Gemini: {str(e)}"

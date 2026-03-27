@@ -1,9 +1,11 @@
+from src.models import Document
+
 class ContextBuilder:
     def __init__(self, max_chars: int = 40000):
         # V2: Com TF-IDF as fontes são mais ricas. Aumentamos a tolância para cerca de 10.000 tokens
         self.max_chars = max_chars
         
-    def build_context(self, relevant_docs: list[dict]) -> str:
+    def build_context(self, relevant_docs: list[Document]) -> str:
         """
         V2: Concatena de forma estruturada para o LLM não se perder
         """
@@ -12,8 +14,8 @@ class ContextBuilder:
         
         for doc in relevant_docs:
             # Layout mais claro exigido na V2
-            header = f"\n[Fonte: {doc['filename']}]\n"
-            content = doc["content"]
+            header = f"\n[Fonte: {doc.filename}]\n"
+            content = doc.content
             
             # Espaço que ainda temos sobrando
             available_space = self.max_chars - current_length - len(header)

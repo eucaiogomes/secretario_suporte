@@ -1,4 +1,5 @@
 import re
+from src.models import Document
 
 class TextProcessor:
     @staticmethod
@@ -25,7 +26,7 @@ class TextProcessor:
         return text.strip()
 
     @staticmethod
-    def chunk_document(filename: str, path: str, clean_text: str) -> list[dict]:
+    def chunk_document(filename: str, path: str, clean_text: str) -> list[Document]:
         """
         V2 Pseudo-Chunking:
         Divide o documento em blocos menores (chunks) baseados em Headers Markdown (# e ##).
@@ -53,10 +54,10 @@ class TextProcessor:
             if not section_name:
                 section_name = f"Parte {i+1}"
                 
-            chunks.append({
-                "filename": f"{filename} (Seção: {section_name})",
-                "path": path,
-                "content": chunk,
-            })
+            chunks.append(Document(
+                filename=f"{filename} (Seção: {section_name})",
+                path=path,
+                content=chunk
+            ))
             
         return chunks

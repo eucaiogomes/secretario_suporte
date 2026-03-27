@@ -1,6 +1,10 @@
+import logging
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from src.gemini_client import GeminiClient
+from src.models import Document
+
+logger = logging.getLogger(__name__)
 
 class SearchEngine:
     @staticmethod
@@ -19,7 +23,7 @@ class SearchEngine:
             return query
 
     @staticmethod
-    def search(query: str, documents: list[dict], top_k: int = 15) -> list[dict]:
+    def search(query: str, documents: list[Document], top_k: int = 15) -> list[Document]:
         """
         V2 Ranking via scikit-learn TfidfVectorizer com Query Expansion e Heading Boost.
         """
@@ -27,9 +31,9 @@ class SearchEngine:
             return []
             
         expanded_query = SearchEngine.expand_query(query)
-        print(f"🔄 Expansion V2: Buscando por '{expanded_query.replace(chr(10), ' ')}'")
+        logger.info(f"🔄 Expansion V2: Buscando por '{expanded_query.replace(chr(10), ' ')}'")
         
-        corpus = [doc["content"] for doc in documents]
+        corpus = [doc.content for doc in documents]
         
         vectorizer = TfidfVectorizer(ngram_range=(1, 2))
         try:
@@ -43,21 +47,22 @@ class SearchEngine:
                 
                 # Boost (Headings/Títulos) V2
                 words = query.lower().split()
-                if any(w in doc["filename"].lower() for w in words if len(w) > 3):
+                if any(w in doc.filename.lower() for w in words if len(w) > 3):
                     score *= 1.5
                     
                 if score > 0.02:
-                    doc_with_score = doc.copy()
-                    doc_with_score["score"] = score
+                    import copy
+                    doc_with_score = copy.copy(doc)
+                    doc_with_score.score = score
                     scored_docs.append(doc_with_score)
                     
-            scored_docs.sort(key=lambda x: x.get("score", 0), reverse=True)
+            scored_docs.sort(key=lambda x: x.score, reverse=True)
             
             # Deduplicação: máx de 3 blocos do mesmo arquivo original
             final_docs = []
             seen = {}
             for doc in scored_docs:
-                base_name = doc["filename"].split(" (Seção")[0]
+                base_name = doc.filename.split(" (Seção")[0]
                 if seen.get(base_name, 0) < 3:
                     final_docs.append(doc)
                     seen[base_name] = seen.get(base_name, 0) + 1
@@ -65,5 +70,5 @@ class SearchEngine:
                     break
             return final_docs
         except Exception as e:
-            print(f"Erro TF-IDF: {e}")
+            logger.error(f"Erro TF-IDF: {e}")
             return []
